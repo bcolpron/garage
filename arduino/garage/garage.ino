@@ -1,4 +1,4 @@
-int count = 0;
+long count = 0;
 
 void setup() {
   //start serial connection
