@@ -1,15 +1,24 @@
-long count = 0;
+
+unsigned long last;
 
 void setup() {
-  //start serial connection
   Serial.begin(9600);
+  pinMode(2, INPUT_PULLUP);
+  last = millis();
+}
+
+void send(const char* command, int val)
+{
+    char s[1024];
+    sprintf(s, "RESPONSE state=%d\n", val);
+    Serial.print(s);
 }
 
 void loop() {
-  char s[1024];
-  memset(s, '0', 1024);
-  sprintf(s, "Counter is %d\n", count++);
-  Serial.print(s);
-  delay(1000);
+  if(millis() > last+10000)
+  {
+    send("UPDATE", digitalRead(2));
+    last = millis();
+  }
 }
 
