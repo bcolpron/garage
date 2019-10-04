@@ -1,9 +1,7 @@
 
 unsigned long last;
-
 unsigned request_size = 0;
 char request_buf[32];
-
 #define INTERVAL 3000
 
 void setup() {
@@ -14,18 +12,16 @@ void setup() {
 
 void send(const char* command, int val)
 {
-    Serial.print('[');
-    Serial.print(millis());
-    Serial.print("] ");
-    Serial.print(command);
-    Serial.print(" state=");
-    Serial.println(val);
-    //Serial.flush();
+  Serial.print('[');
+  Serial.print(millis());
+  Serial.print("] ");
+  Serial.print(command);
+  Serial.print(" state=");
+  Serial.println(val);
 }
 
 bool readRequest(char* buf, unsigned maxSize)
 {
-  //assert(maxSize >= 2);
   if (!Serial.available()) return false;
   int c = Serial.read();
   if ( c == 10 || c == 13)
@@ -52,8 +48,15 @@ void loop() {
 
   if (readRequest(request_buf, sizeof request_buf))
   {
-    Serial.println(request_buf);
-    send("RESPONSE", digitalRead(2));
+    if (strcmp(request_buf, "GET state") == 0)
+    {
+      send("RESPONSE", digitalRead(2));
+    }
+    else
+    {
+      Serial.print("Invalid command: ");
+      Serial.println(request_buf);
+    }
   }
 }
 
