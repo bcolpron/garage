@@ -7,6 +7,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/serial_port.hpp>
 #include <boost/system/error_code.hpp>
+#include "httpserver/httpserver.h"
 
 class SerialPort
 {
@@ -93,6 +94,13 @@ int main(int, const char **)
 {
     SerialPort port{"/dev/ttyACM0", 9600};
     port.start();
+
+    HttpServer server(12001);
+    server.add_http_handler(http::verb::get, "/", [&](auto&& req)
+    {
+        return make_response(req, port.query());
+    });
+    server.run();
 
     for(;;) 
     {
