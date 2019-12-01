@@ -8,6 +8,7 @@
 #include <boost/asio/serial_port.hpp>
 #include <boost/system/error_code.hpp>
 #include "httpserver/httpserver.h"
+#include <nlohmann/json.hpp>
 
 class SerialPort
 {
@@ -45,6 +46,11 @@ public:
         return fut.get();
     };
 
+    template<class Callback>
+    void on_update(Callback&& f) {
+        callback = f;
+    }
+
 private:
 
     void read_some() {
@@ -73,10 +79,18 @@ private:
     }
 
     void on_message(const std::string& message, const std::string& state) {
-        std::lock_guard<std::mutex> guard(mutex);
-        if (promise) {
-            promise->set_value(state);
-            promise.reset();
+        std::cout << message << " state=" << state << std::endl;
+        if (message == "RESPONSE")
+        {
+            std::lock_guard<std::mutex> guard(mutex);
+            if (promise) {
+                promise->set_value(state);
+                promise.reset();
+            }
+        }
+        else if (message == "UPDATE")
+        {
+            callback(state);
         }
     }
 
@@ -88,17 +102,49 @@ private:
     std::thread runner;
     std::mutex mutex;
     std::unique_ptr<std::promise<std::string>> promise;
+    std::function<void(std::string)> callback;
 };
+
+std::string timestamp()
+{
+    time_t now;
+    time(&now);
+    char buf[sizeof "2011-10-08 07:07:09"];
+    strftime(buf, sizeof buf, "%F %T", localtime(&now));
+    return buf;
+}
 
 int main(int, const char **)
 {
     SerialPort port{"/dev/ttyACM0", 9600};
     port.start();
 
+    auto history = nlohmann::json::array();
+    std::string last;
+
+    port.on_update([&] (const std::string& new_state) {
+        if (new_state != last) {
+            nlohmann::json entry;
+            entry["timestamp"] = timestamp();
+            entry["value"] = new_state;
+            entry["description"] = ("door is " + new_state == "0" ? "open" : "closed");
+            history.push_back(entry);
+            last = new_state;
+        }
+    });
+
     HttpServer server(12001);
-    server.add_http_handler(http::verb::get, "/", [&](auto&& req)
+    server.add_http_handler(http::verb::get, "/history", [&](auto&& req)
+    {
+        return make_response(req, history.dump());
+    });
+    server.add_http_handler(http::verb::get, "/current", [&](auto&& req)
     {
         return make_response(req, port.query());
+    });
+    server.add_http_handler(http::verb::get, "/", [&](auto&& req)
+    {
+        return make_response(req, "hello");
     });
     server.run();
 

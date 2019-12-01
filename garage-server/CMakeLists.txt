@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(${PROJECT_NAME} main.cpp)
 
 find_package(Boost 1.65.0 REQUIRED COMPONENTS system filesystem regex coroutine context thread)
+find_package(nlohmann_json 3.2.0 REQUIRED)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${Boost_INCLUDE_DIRS}
