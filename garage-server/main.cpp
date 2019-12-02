@@ -118,7 +118,7 @@ nlohmann::json server_started_message()
     return entry;
 }
 
-nlohmann::json update_message(std::string_view new_state)
+nlohmann::json build_state_json(std::string_view new_state)
 {
     using namespace std::string_literals;
     nlohmann::json entry;
@@ -139,7 +139,7 @@ int main(int, const char **)
     std::string last;
     port.on_update([&] (const std::string& new_state) {
         if (new_state != last) {
-            history.push_back(update_message(new_state));
+            history.push_back(build_state_json(new_state));
             last = new_state;
         }
     });
@@ -151,7 +151,11 @@ int main(int, const char **)
     });
     server.add_http_handler(http::verb::get, "/current", [&](auto&& req)
     {
-        return make_response(req, update_message(port.query().get()).dump());
+        auto state = port.query();
+        if (state.wait_for(std::chrono::seconds(2)) != std::future_status::ready) {
+            throw std::runtime_error("no response from device");
+        }
+        return make_response(req, build_state_json(state.get()).dump());
     });
     server.add_http_handler(http::verb::get, "/", [&](auto&& req)
     {
