@@ -34,16 +34,12 @@ public:
         runner = std::thread([this] {ios.run();});
     }
 
-    std::string query() {
-        port.write_some(boost::asio::buffer("GET state\n"));
-
-        std::future<std::string> fut;
-        {
-            std::lock_guard<std::mutex> guard(mutex);
-            promise = std::make_unique<std::promise<std::string>>();
-            fut = promise->get_future();
-        }
-        return fut.get();
+    std::future<std::string> query()
+    {
+        auto written=port.write_some(boost::asio::buffer("GET state\n", 10));
+        std::lock_guard<std::mutex> guard(mutex);
+        promise = std::make_unique<std::promise<std::string>>();
+        return promise->get_future();
     };
 
     template<class Callback>
@@ -114,21 +110,36 @@ std::string timestamp()
     return buf;
 }
 
+nlohmann::json server_started_message()
+{
+    nlohmann::json entry;
+    entry["timestamp"] = timestamp();
+    entry["description"] = "Server started";
+    return entry;
+}
+
+nlohmann::json update_message(std::string_view new_state)
+{
+    using namespace std::string_literals;
+    nlohmann::json entry;
+    entry["timestamp"] = timestamp();
+    entry["value"] = new_state;
+    entry["description"] = ("door is "s + (new_state == "0" ? "open" : "closed"));
+    return entry;
+}
+
 int main(int, const char **)
 {
     SerialPort port{"/dev/ttyACM0", 9600};
     port.start();
 
     auto history = nlohmann::json::array();
-    std::string last;
+    history.push_back(server_started_message());
 
+    std::string last;
     port.on_update([&] (const std::string& new_state) {
         if (new_state != last) {
-            nlohmann::json entry;
-            entry["timestamp"] = timestamp();
-            entry["value"] = new_state;
-            entry["description"] = ("door is " + new_state == "0" ? "open" : "closed");
-            history.push_back(entry);
+            history.push_back(update_message(new_state));
             last = new_state;
         }
     });
@@ -140,19 +151,13 @@ int main(int, const char **)
     });
     server.add_http_handler(http::verb::get, "/current", [&](auto&& req)
     {
-        return make_response(req, port.query());
+        return make_response(req, update_message(port.query().get()).dump());
     });
     server.add_http_handler(http::verb::get, "/", [&](auto&& req)
     {
         return make_response(req, "hello");
     });
     server.run();
-
-    for(;;) 
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        std::cout << port.query() << std::endl;
-    }
 
     return 0;
 }
