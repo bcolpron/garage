@@ -66,6 +66,7 @@ private:
     void check_message() {
         boost::match_results<const char*> m;
         if (!boost::regex_search(buffer, m, re, boost::match_partial)) {
+            std::cout << "rejected '" << buffer << "'" << std::endl;
             accumulated = 0;    
         } else if (m[0].matched) {
             on_message(std::string(m[1].first, m[1].length()),
@@ -94,7 +95,7 @@ private:
     boost::asio::serial_port port{ios};
     char buffer[256];
     std::size_t accumulated = 0;
-    boost::regex re{"\\[\\d+\\] (UPDATE|RESPONSE) state=(0|1)"};
+    boost::regex re{"\\[\\d+\\] (UPDATE|RESPONSE) state=(0|1)\r\n"};
     std::thread runner;
     std::mutex mutex;
     std::unique_ptr<std::promise<std::string>> promise;

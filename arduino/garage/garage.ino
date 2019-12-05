@@ -2,6 +2,7 @@
 unsigned long last;
 unsigned request_size = 0;
 char request_buf[32];
+int last_value = -1;
 #define INTERVAL 3000
 
 void setup() {
@@ -40,9 +41,11 @@ bool readRequest(char* buf, unsigned maxSize)
 }
 
 void loop() {
-  if(millis() > last+INTERVAL)
+  int val = digitalRead(2);
+  if(val != last_value || millis() > last+INTERVAL)
   {
-    send("UPDATE", digitalRead(2));
+    send("UPDATE", val);
+    last_value = val;
     last = millis();
   }
 
@@ -50,7 +53,7 @@ void loop() {
   {
     if (strcmp(request_buf, "GET state") == 0)
     {
-      send("RESPONSE", digitalRead(2));
+      send("RESPONSE", val);
     }
     else
     {
